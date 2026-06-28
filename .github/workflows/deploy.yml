@@ -1,0 +1,49 @@
+name: CI/CD Innovatech EKS
+
+on:
+  push:
+    branches: [ "deploy" ] # Se activa al hacer push a la rama deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Código
+      uses: actions/checkout@v3
+
+    - name: Configurar Credenciales AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: us-east-1
+
+    - name: Login en Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Compilar y Subir Imágenes a ECR
+      run: |
+        # Backend
+        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:latest ./backend
+        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:latest
+        
+        # Frontend
+        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:latest ./frontend
+        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:latest
+
+    - name: Actualizar Clúster EKS
+      run: |
+        aws eks update-kubeconfig --region us-east-1 --name devopseks
+        
+        # Aplicar los manifiestos actualizados
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/mysql-secret.yaml
+        kubectl apply -f k8s/mysql-pvc.yaml
+        kubectl apply -f k8s/mysql-deployment.yaml
+        kubectl apply -f k8s/mysql-service.yaml
+        
+        # Forzar reinicio para descargar las imágenes nuevas (:latest)
+        kubectl rollout restart deployment/tienda-backend -n tienda
+        kubectl rollout restart deployment/tienda-frontend -n tienda

@@ -1,0 +1,461 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: DevOps Platform - Network + ECR + EKS
+
+Parameters:
+
+  EksClusterRoleName:
+    Type: String
+    Description: Nombre del rol IAM para el cluster EKS (sin el prefijo ARN)
+    MinLength: 1
+
+  EksNodeRoleName:
+    Type: String
+    Description: Nombre del rol IAM para el node group de EKS (sin el prefijo ARN)
+    MinLength: 1
+
+Resources:
+
+  #################################
+  # VPC
+  #################################
+
+  DevOpsVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: devopsvpc
+
+  #################################
+  # INTERNET GATEWAY
+  #################################
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: devops-igw
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  #################################
+  # PUBLIC SUBNETS
+  #################################
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: public-subnet-a
+        - Key: kubernetes.io/role/elb
+          Value: "1"
+        - Key: kubernetes.io/cluster/devopseks
+          Value: "shared"
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: public-subnet-b
+        - Key: kubernetes.io/role/elb
+          Value: "1"
+        - Key: kubernetes.io/cluster/devopseks
+          Value: "shared"
+
+  #################################
+  # PRIVATE SUBNETS AZ A
+  #################################
+
+  PrivateSubnetA1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.11.0/24
+      Tags:
+        - Key: Name
+          Value: private-subnet-a1
+        - Key: kubernetes.io/role/internal-elb
+          Value: "1"
+        - Key: kubernetes.io/cluster/devopseks
+          Value: "shared"
+
+  PrivateSubnetA2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.12.0/24
+      Tags:
+        - Key: Name
+          Value: private-subnet-a2
+        - Key: kubernetes.io/role/internal-elb
+          Value: "1"
+        - Key: kubernetes.io/cluster/devopseks
+          Value: "shared"
+
+  #################################
+  # PRIVATE SUBNETS AZ B
+  #################################
+
+  PrivateSubnetB1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.21.0/24
+      Tags:
+        - Key: Name
+          Value: private-subnet-b1
+        - Key: kubernetes.io/role/internal-elb
+          Value: "1"
+        - Key: kubernetes.io/cluster/devopseks
+          Value: "shared"
+
+  PrivateSubnetB2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.22.0/24
+      Tags:
+        - Key: Name
+          Value: private-subnet-b2
+        - Key: kubernetes.io/role/internal-elb
+          Value: "1"
+        - Key: kubernetes.io/cluster/devopseks
+          Value: "shared"
+
+  #################################
+  # NAT GATEWAY
+  #################################
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: devops-nat-eip
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: devops-nat
+
+  #################################
+  # PUBLIC ROUTE TABLE
+  #################################
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      Tags:
+        - Key: Name
+          Value: public-route-table
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  #################################
+  # PRIVATE ROUTE TABLE
+  #################################
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DevOpsVPC
+      Tags:
+        - Key: Name
+          Value: private-route-table
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  #################################
+  # PUBLIC ASSOCIATIONS
+  #################################
+
+  PublicSubnetAAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  #################################
+  # PRIVATE ASSOCIATIONS
+  #################################
+
+  PrivateSubnetA1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA1
+
+  PrivateSubnetA2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA2
+
+  PrivateSubnetB1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB1
+
+  PrivateSubnetB2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB2
+
+
+
+  FrontendRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: tienda-frontend
+
+  BackendRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: tienda-backend
+
+  DbRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: tienda-db
+
+
+
+  #####################################################
+  # EKS CLUSTER
+  #####################################################
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: devopseks
+
+      Version: "1.35"
+
+      RoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${EksClusterRoleName}'
+
+      ResourcesVpcConfig:
+        EndpointPrivateAccess: true
+        EndpointPublicAccess: true
+
+        SubnetIds:
+          - !Ref PublicSubnetA
+          - !Ref PublicSubnetB
+          - !Ref PrivateSubnetA1
+          - !Ref PrivateSubnetA2
+          - !Ref PrivateSubnetB1
+          - !Ref PrivateSubnetB2
+
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+            - Type: controllerManager
+            - Type: scheduler
+
+  #####################################################
+  # MANAGED NODE GROUP
+  #####################################################
+
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn:
+      - EKSCluster
+
+    Properties:
+      ClusterName: !Ref EKSCluster
+
+      NodegroupName: devops-nodegroup
+
+      NodeRole: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${EksNodeRoleName}'
+
+      CapacityType: ON_DEMAND
+
+      InstanceTypes:
+        - t3.large
+
+      AmiType: AL2023_x86_64_STANDARD
+
+      DiskSize: 20
+
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 1
+        MaxSize: 3
+
+      UpdateConfig:
+        MaxUnavailable: 1
+
+      Labels:
+        environment: lab
+
+      Subnets:
+        - !Ref PrivateSubnetA1
+        - !Ref PrivateSubnetA2
+        - !Ref PrivateSubnetB1
+        - !Ref PrivateSubnetB2
+
+  #####################################################
+  # ADDONS
+  #####################################################
+
+  VpcCniAddon:
+    Type: AWS::EKS::Addon
+    DependsOn:
+      - EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: vpc-cni
+
+  CoreDnsAddon:
+    Type: AWS::EKS::Addon
+    DependsOn:
+      - EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: coredns
+
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    DependsOn:
+      - EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: kube-proxy
+
+  PodIdentityAddon:
+    Type: AWS::EKS::Addon
+    DependsOn:
+      - EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: eks-pod-identity-agent
+
+  CloudWatchObservabilityAddon:
+    Type: AWS::EKS::Addon
+    DependsOn:
+      - EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: amazon-cloudwatch-observability
+
+
+Outputs:
+
+
+  VpcId:
+    Description: VPC ID
+    Value: !Ref DevOpsVPC
+    Export:
+      Name: devops-vpc-id
+
+  PublicSubnetA:
+    Value: !Ref PublicSubnetA
+    Export:
+      Name: devops-public-subnet-a
+
+  PublicSubnetB:
+    Value: !Ref PublicSubnetB
+    Export:
+      Name: devops-public-subnet-b
+
+  PrivateSubnetA1:
+    Value: !Ref PrivateSubnetA1
+    Export:
+      Name: devops-private-subnet-a1
+
+  PrivateSubnetA2:
+    Value: !Ref PrivateSubnetA2
+    Export:
+      Name: devops-private-subnet-a2
+
+  PrivateSubnetB1:
+    Value: !Ref PrivateSubnetB1
+    Export:
+      Name: devops-private-subnet-b1
+
+  PrivateSubnetB2:
+    Value: !Ref PrivateSubnetB2
+    Export:
+      Name: devops-private-subnet-b2
+
+  PrivateSubnets:
+    Description: All private subnets
+    Value: !Join
+      - ","
+      - - !Ref PrivateSubnetA1
+        - !Ref PrivateSubnetA2
+        - !Ref PrivateSubnetB1
+        - !Ref PrivateSubnetB2
+
+
+  ClusterName:
+    Description: EKS Cluster Name
+    Value: !Ref EKSCluster
+
+  ClusterArn:
+    Description: EKS Cluster ARN
+    Value: !GetAtt EKSCluster.Arn
+
+  ClusterEndpoint:
+    Description: Kubernetes API Endpoint
+    Value: !GetAtt EKSCluster.Endpoint
+
+  ClusterSecurityGroup:
+    Description: Cluster Security Group
+    Value: !GetAtt EKSCluster.ClusterSecurityGroupId
+
+  NodeGroupName:
+    Description: Managed Node Group Name
+    Value: !Ref EKSNodeGroup

@@ -1,0 +1,2 @@
+# Cargar .zip mediante Cloudshell y ejecutar el siguiente comando:
+unzip deploy-tienda-perritos.zip && chmod +x deploy.sh && ./deploy.sh
