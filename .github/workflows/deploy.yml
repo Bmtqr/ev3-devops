@@ -58,7 +58,7 @@ jobs:
         
         # 5. AUTOMATIZAR EL ESCALADO: Registrar los recursos HPA en el clúster
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/backend-hpa.yaml
-        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/front-hpa.yaml
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/frontend-hpa.yaml
         
         # 6. Forzar el reinicio ordenado de los deployments en el clúster orquestado
         kubectl rollout restart deployment/tienda-db -n tienda
