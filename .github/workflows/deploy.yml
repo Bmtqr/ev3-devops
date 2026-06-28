@@ -25,20 +25,20 @@ jobs:
 
     - name: Compilar y Subir Imágenes a ECR
       run: |
-        # ID de cuenta extraído de tus políticas de ECR por defecto
-        # Nos paramos en las carpetas reales usando la ruta de tu captura
+        # Capturamos dinámicamente el endpoint autenticado por el paso anterior
+        REGISTRY=${{ steps.login-ecr.outputs.registry }}
         
         # 1. Base de Datos
-        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-db:eks-v1 ./2_CloudShell/deploy-tienda-perritos/db
-        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-db:eks-v1
+        docker build -t $REGISTRY/tienda-db:eks-v1 ./2_CloudShell/deploy-tienda-perritos/db
+        docker push $REGISTRY/tienda-db:eks-v1
         
         # 2. Backend Node.js
-        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:eks-v1 ./2_CloudShell/deploy-tienda-perritos/backend
-        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:eks-v1
+        docker build -t $REGISTRY/tienda-backend:eks-v1 ./2_CloudShell/deploy-tienda-perritos/backend
+        docker push $REGISTRY/tienda-backend:eks-v1
         
         # 3. Frontend Nginx
-        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:eks-v1 ./2_CloudShell/deploy-tienda-perritos/frontend
-        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:eks-v1
+        docker build -t $REGISTRY/tienda-frontend:eks-v1 ./2_CloudShell/deploy-tienda-perritos/frontend
+        docker push $REGISTRY/tienda-frontend:eks-v1
 
     - name: Actualizar Clúster EKS
       run: |
