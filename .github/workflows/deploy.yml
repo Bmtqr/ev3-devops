@@ -64,7 +64,7 @@ jobs:
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/backend-service.yaml
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/frontend-service.yaml
 
-        # 5. CREAR LOS DEPLOYMENTS EN EL CLÚSTER (Paso indispensable corregido)
+        # 5. CREAR LOS DEPLOYMENTS EN EL CLÚSTER
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-deployment.yaml
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/backend-deployment.yaml
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/frontend-deployment.yaml
