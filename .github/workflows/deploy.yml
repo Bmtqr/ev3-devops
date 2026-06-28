@@ -60,10 +60,7 @@ jobs:
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/backend-hpa.yaml
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/frontend-hpa.yaml
         
-        # 6. Recrear el deployment de la base de datos (Línea agregada)
-        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-deployment.yaml
-        
-        # 7. Forzar el reinicio ordenado de los deployments en el clúster orquestado
+        # 6. Forzar el reinicio ordenado de los deployments en el clúster orquestado
         kubectl rollout restart deployment/tienda-db -n tienda
         kubectl rollout restart deployment/tienda-backend -n tienda
         kubectl rollout restart deployment/tienda-frontend -n tienda
