@@ -56,7 +56,11 @@ jobs:
         # 4. Aplicar los servicios de red interna
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-service.yaml
         
-        # 5. Forzar el reinicio ordenado de los deployments en el clúster orquestado
+        # 5. AUTOMATIZAR EL ESCALADO: Registrar los recursos HPA en el clúster
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/backend-hpa.yaml
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/front-hpa.yaml
+        
+        # 6. Forzar el reinicio ordenado de los deployments en el clúster orquestado
         kubectl rollout restart deployment/tienda-db -n tienda
         kubectl rollout restart deployment/tienda-backend -n tienda
         kubectl rollout restart deployment/tienda-frontend -n tienda
