@@ -2,7 +2,7 @@ name: CI/CD Innovatech EKS
 
 on:
   push:
-    branches: [ "deploy" ] # Se activa al hacer push a la rama deploy
+    branches: [ "deploy" ]
 
 jobs:
   build-and-deploy:
@@ -25,25 +25,31 @@ jobs:
 
     - name: Compilar y Subir Imágenes a ECR
       run: |
-        # Backend
-        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:latest ./backend
-        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:latest
+        # ID de cuenta extraído de tus políticas de ECR por defecto
+        # Nos paramos en las carpetas reales usando la ruta de tu captura
         
-        # Frontend
-        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:latest ./frontend
-        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:latest
+        # 1. Base de Datos
+        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-db:eks-v1 ./2_CloudShell/deploy-tienda-perritos/db
+        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-db:eks-v1
+        
+        # 2. Backend Node.js
+        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:eks-v1 ./2_CloudShell/deploy-tienda-perritos/backend
+        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:eks-v1
+        
+        # 3. Frontend Nginx
+        docker build -t 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:eks-v1 ./2_CloudShell/deploy-tienda-perritos/frontend
+        docker push 542768639545.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:eks-v1
 
     - name: Actualizar Clúster EKS
       run: |
         aws eks update-kubeconfig --region us-east-1 --name devopseks
         
-        # Aplicar los manifiestos actualizados
-        kubectl apply -f k8s/namespace.yaml
-        kubectl apply -f k8s/mysql-secret.yaml
-        kubectl apply -f k8s/mysql-pvc.yaml
-        kubectl apply -f k8s/mysql-deployment.yaml
-        kubectl apply -f k8s/mysql-service.yaml
+        # Aplicamos los manifiestos k8s con la ruta correcta de tu proyecto
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/namespace.yaml
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-secret.yaml
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-service.yaml
         
-        # Forzar reinicio para descargar las imágenes nuevas (:latest)
+        # Forzar el reinicio ordenado de los deployments en el cluster orquestado
+        kubectl rollout restart deployment/tienda-db -n tienda
         kubectl rollout restart deployment/tienda-backend -n tienda
         kubectl rollout restart deployment/tienda-frontend -n tienda
