@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: tienda
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3 # Clase de almacenamiento por defecto en EKS
+  resources:
+    requests:
+      storage: 10Gi
