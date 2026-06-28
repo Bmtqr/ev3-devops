@@ -6,7 +6,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: gp3 # Clase de almacenamiento por defecto en EKS
+  storageClassName: gp3 # La clase de almacenamiento estándar de AWS
   resources:
     requests:
-      storage: 10Gi
+      storage: 10Gi # Reserva 10 Gigabytes en AWS EBS

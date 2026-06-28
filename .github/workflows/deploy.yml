@@ -44,12 +44,19 @@ jobs:
       run: |
         aws eks update-kubeconfig --region us-east-1 --name devopseks
         
-        # Aplicamos los manifiestos k8s con la ruta correcta de tu proyecto
+        # 1. Aplicar espacio aislado de trabajo
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/namespace.yaml
+        
+        # 2. Aplicar contraseñas y secrets de base de datos
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-secret.yaml
+        
+        # 3. PRODUCIR LA PERSISTENCIA: Crear el volumen físico gp3 en AWS
+        kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-pvc.yaml
+        
+        # 4. Aplicar los servicios de red interna
         kubectl apply -f ./2_CloudShell/deploy-tienda-perritos/k8s/mysql-service.yaml
         
-        # Forzar el reinicio ordenado de los deployments en el cluster orquestado
+        # 5. Forzar el reinicio ordenado de los deployments en el clúster orquestado
         kubectl rollout restart deployment/tienda-db -n tienda
         kubectl rollout restart deployment/tienda-backend -n tienda
         kubectl rollout restart deployment/tienda-frontend -n tienda
