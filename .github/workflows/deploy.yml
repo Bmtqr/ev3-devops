@@ -14,7 +14,6 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     
-    # Configuración del directorio de trabajo raíz para todos los comandos
     defaults:
       run:
         working-directory: 2_CloudShell/deploy-tienda-perritos
@@ -65,6 +64,7 @@ jobs:
         # Despliegue secuencial de la arquitectura
         kubectl apply -f ./k8s/namespace.yaml
         kubectl apply -f ./k8s/mysql-secret.yaml
+        kubectl apply -f ./k8s/mysql-pvc.yaml
         kubectl apply -f ./k8s/mysql-deployment.yaml
         kubectl apply -f ./k8s/mysql-service.yaml
         kubectl apply -f ./k8s/backend-deployment.yaml
