@@ -13,6 +13,11 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    
+    # Configuración del directorio de trabajo raíz para todos los comandos
+    defaults:
+      run:
+        working-directory: 2_CloudShell/deploy-tienda-perritos
 
     steps:
     - name: Checkout Code
@@ -70,4 +75,3 @@ jobs:
         # Despliegue de tus archivos HPA individuales
         kubectl apply -f ./k8s/frontend-hpa.yaml
         kubectl apply -f ./k8s/backend-hpa.yaml
-
