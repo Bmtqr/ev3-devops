@@ -50,6 +50,15 @@ jobs:
         docker tag tienda-backend:latest $ECR_REGISTRY/tienda-backend:eks-v1
         docker push $ECR_REGISTRY/tienda-backend:eks-v1
 
+    # PASO AGREGADO: Garantiza que la imagen de MySQL se compile y suba a AWS ECR
+    - name: Build, Tag, and Push DB to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        docker build -t tienda-db ./db
+        docker tag tienda-db:latest $ECR_REGISTRY/tienda-db:eks-v1
+        docker push $ECR_REGISTRY/tienda-db:eks-v1
+
     - name: Update Kubeconfig
       run: |
         aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
@@ -64,7 +73,6 @@ jobs:
         # Despliegue secuencial de la arquitectura
         kubectl apply -f ./k8s/namespace.yaml
         kubectl apply -f ./k8s/mysql-secret.yaml
-        kubectl apply -f ./k8s/mysql-pvc.yaml
         kubectl apply -f ./k8s/mysql-deployment.yaml
         kubectl apply -f ./k8s/mysql-service.yaml
         kubectl apply -f ./k8s/backend-deployment.yaml
