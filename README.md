@@ -95,6 +95,8 @@ ev3-devops/
 
 Antes de ejecutar CloudFormation necesitas dos roles IAM.
 
+> **Nota para entornos AWS Academy (Learner Lab):** Los roles IAM ya se crean automáticamente en cada lab con nombres largos y aleatorios (por ejemplo, `c209059a5310053l15329600t1w535152-LabEksClusterRole-IOAyOzsyWCfL`). En ese caso, **no debes crear los roles manualmente**: ve directamente a **IAM > Roles**, identifica los roles con "EksCluster" y "EksNodeRole" en su nombre, y copia esos nombres para usarlos en el paso 7. Asegúrate de no incluir espacios al inicio o al final del nombre al pegarlo.
+
 ### 3.1. EKS Cluster Role
 
 Ve a **IAM > Roles > Create role**:
@@ -233,13 +235,15 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM
 ```
 
-Reemplaza `EksClusterRole` y `EksNodeRole` con los nombres que creaste en el paso 3.
+Reemplaza `EksClusterRole` y `EksNodeRole` con los nombres que creaste (o copiaste desde IAM) en el paso 3.
 
-Espera a que termine (15-20 minutos):
+Espera a que termine (aproximadamente 12-15 minutos):
 
 ```bash
 aws cloudformation wait stack-create-complete --stack-name devops-infra
 ```
+
+Puedes verificar el progreso desde la consola de AWS en **CloudFormation > Stacks > devops-infra > Events > Timeline view**. Cuando todos los recursos aparezcan en verde (completados) y el node group esté en estado Activo, el stack está listo.
 
 **Lo que crea esta plantilla:**
 
@@ -322,8 +326,16 @@ find ./k8s -type f -name "*.yaml" -exec sed -i "s|{{ECR_URL}}|$ECR_URL|g" {} \;
 
 ### 10.2. Instalar Metrics Server (necesario para HPA)
 
+El Metrics Server es requerido para que el autoescalado horizontal (HPA) pueda leer el uso de CPU de los pods. Sin este componente, los HPA quedarán en estado `unknown` y no escalarán.
+
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+Verifica que esté listo antes de continuar:
+
+```bash
+kubectl rollout status deployment/metrics-server -n kube-system --timeout=120s
 ```
 
 ### 10.3. Aplicar manifiestos
@@ -337,7 +349,7 @@ kubectl apply -f ./k8s/mysql-secret.yaml
 kubectl apply -f ./k8s/mysql-deployment.yaml
 kubectl apply -f ./k8s/mysql-service.yaml
 
-# Esperar que MySQL esté listo
+# Esperar que MySQL esté listo antes de iniciar el backend
 kubectl rollout status deployment/tienda-db -n tienda --timeout=300s
 
 # Backend
@@ -375,7 +387,7 @@ kubectl apply -f ./k8s/backend-hpa.yaml
 kubectl get svc tienda-frontend -n tienda -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 ```
 
-Abre esa URL en el navegador. Deberías ver la tienda de perritos con productos precargados.
+Abre esa URL en el navegador. Puede demorar unos minutos en quedar efectivamente habilitada incluso después de que el script la muestre. Deberías ver la tienda de perritos con productos precargados.
 
 ---
 
@@ -391,7 +403,7 @@ Ve a **Settings > Secrets and variables > Actions > New repository secret** y ag
 |---|---|
 | `AWS_ACCESS_KEY_ID` | Access Key de AWS |
 | `AWS_SECRET_ACCESS_KEY` | Secret Key correspondiente |
-| `AWS_SESSION_TOKEN` | Session Token (si usas credenciales temporales) |
+| `AWS_SESSION_TOKEN` | Session Token (requerido al usar credenciales temporales de AWS Academy) |
 
 ### 11.2. Flujo del pipeline
 
@@ -405,6 +417,8 @@ El archivo `.github/workflows/deploy.yml` hace lo siguiente:
 6. **Build, Tag, Push DB** — `docker build ./db`, taggea y pushea
 7. **Update Kubeconfig** — conecta kubectl al cluster `devopseks`
 8. **Deploy to EKS** — reemplaza `{{ECR_URL}}` y aplica todos los YAML
+
+> **Nota:** El pipeline aplica los manifiestos de forma secuencial pero sin esperar a que cada componente esté listo. Si el backend falla al conectar con MySQL en el primer intento, Kubernetes lo reiniciará automáticamente hasta que MySQL esté disponible. El Metrics Server debe instalarse manualmente (paso 10.2) antes de que los HPA funcionen correctamente.
 
 ### 11.3. Cómo usarlo
 
@@ -489,7 +503,12 @@ kubectl get hpa -n tienda -w
 ssh -i tu-key.pem ec2-user@<IP_EC2>
 
 # Infraestructura
-aws cloudformation create-stack --stack-name devops-infra --template-body file://1_CloudFormation/duoc-devops-act3.yaml --parameters ParameterKey=EksClusterRoleName,Value=EksClusterRole ParameterKey=EksNodeRoleName,Value=EksNodeRole --capabilities CAPABILITY_IAM
+aws cloudformation create-stack \
+  --stack-name devops-infra \
+  --template-body file://1_CloudFormation/duoc-devops-act3.yaml \
+  --parameters ParameterKey=EksClusterRoleName,ParameterValue=EksClusterRole \
+               ParameterKey=EksNodeRoleName,ParameterValue=EksNodeRole \
+  --capabilities CAPABILITY_IAM
 aws cloudformation delete-stack --stack-name devops-infra
 
 # EKS
